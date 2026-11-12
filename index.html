@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DoggyYa - Paseadores de Perros en tu Distrito | Tipo Uber</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#FFF7ED',
+              100: '#FFEDD5',
+              200: '#FED7AA',
+              500: '#F97316',
+              600: '#EA580C',
+              700: '#C2410C',
+              primary: '#FF5A1F',
+              dark: '#0F172A'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Canvas Confetti for Booking Celebrations -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col antialiased selection:bg-orange-500 selection:text-white">
+
+  <!-- TOP BAR: Live Active Walk Notice (Hidden by default, shown during active ride) -->
+  <div id="liveTripBanner" class="hidden sticky top-0 z-50"></div>
+
+  <!-- NAVIGATION HEADER -->
+  <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-20 gap-4">
+        
+        <!-- Logo & Brand -->
+        <div class="flex items-center gap-6">
+          <a href="#" onclick="window.DoggyApp.switchTab('explore')" class="flex items-center gap-2.5 group">
+            <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-orange-600 to-amber-500 flex items-center justify-center text-white shadow-md shadow-orange-500/25 group-hover:scale-105 transition-transform">
+              <span class="text-2xl">🐾</span>
+            </div>
+            <div>
+              <div class="flex items-center gap-1">
+                <span class="brand-font text-2xl font-black tracking-tight text-slate-900 group-hover:text-orange-600 transition">Doggy<span class="text-orange-600">Ya</span></span>
+                <span class="px-2 py-0.5 text-[10px] uppercase tracking-wider font-extrabold bg-orange-100 text-orange-700 rounded-md">Uber Canino</span>
+              </div>
+              <p class="text-[11px] text-slate-400 font-medium hidden sm:block">Paseos seguros en minutos</p>
+            </div>
+          </a>
+
+          <!-- District Selector Pill (Uber pickup style) -->
+          <div class="hidden md:flex items-center gap-2 bg-slate-100/80 hover:bg-slate-100 px-3.5 py-2 rounded-2xl border border-slate-200/80 transition cursor-pointer">
+            <span class="text-sm">📍</span>
+            <div class="text-left">
+              <div class="text-[10px] uppercase font-bold text-slate-400">Tu Distrito Actual</div>
+              <select id="headerDistrictSelect" class="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1">
+                <!-- Dynamically populated -->
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Desktop Navigation Links -->
+        <nav class="hidden lg:flex items-center gap-1 bg-slate-100/70 p-1.5 rounded-2xl border border-slate-200/60">
+          <button data-tab="explore" class="nav-tab-btn px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-orange-600 text-white shadow-xs">
+            <span>🐶</span>
+            <span>Explorar Paseadores</span>
+          </button>
+          <button data-tab="map" class="nav-tab-btn px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 text-slate-600 hover:bg-slate-100">
+            <span>🗺️</span>
+            <span>Mapa en Vivo</span>
+          </button>
+          <button data-tab="calculator" class="nav-tab-btn px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 text-slate-600 hover:bg-slate-100">
+            <span>💰</span>
+            <span>Calculadora de Tarifas</span>
+          </button>
+          <button data-tab="pets" class="nav-tab-btn px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 text-slate-600 hover:bg-slate-100">
+            <span>🐕</span>
+            <span>Mis Mascotas</span>
+          </button>
+          <button data-tab="trips" class="nav-tab-btn px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 text-slate-600 hover:bg-slate-100">
+            <span>📋</span>
+            <span>Mis Paseos</span>
+          </button>
+          <button data-tab="become-walker" class="nav-tab-btn px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 text-slate-600 hover:bg-slate-100">
+            <span>💼</span>
+            <span>Ser Paseador</span>
+          </button>
+        </nav>
+
+        <!-- Right Utilities & Primary Action Button -->
+        <div class="flex items-center gap-3">
+          <!-- Currency Toggle -->
+          <button id="currencyToggle" class="hidden sm:flex items-center px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition" title="Cambiar moneda">
+            S/. Soles
+          </button>
+
+          <!-- Main CTA: Pedir Paseo Ya -->
+          <button onclick="window.DoggyApp.openBookingModal()" class="px-5 py-2.5 rounded-2xl bg-orange-600 hover:bg-orange-700 active:scale-95 text-white font-bold text-xs sm:text-sm shadow-md shadow-orange-500/25 flex items-center gap-2 transition">
+            <span>Pedir Paseo Ya</span>
+            <span class="text-base">🚀</span>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Mobile Nav Pills Bar -->
+      <div class="flex lg:hidden overflow-x-auto py-2.5 gap-1.5 border-t border-slate-100 no-scrollbar">
+        <button data-tab="explore" class="nav-tab-btn shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold bg-orange-600 text-white">🐶 Paseadores</button>
+        <button data-tab="map" class="nav-tab-btn shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100">🗺️ Mapa</button>
+        <button data-tab="calculator" class="nav-tab-btn shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100">💰 Tarifas</button>
+        <button data-tab="pets" class="nav-tab-btn shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100">🐕 Mascotas</button>
+        <button data-tab="trips" class="nav-tab-btn shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100">📋 Paseos</button>
+        <button data-tab="become-walker" class="nav-tab-btn shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100">💼 Trabaja</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN APP CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- ========================================== -->
+    <!-- VIEW 1: EXPLORAR PASEADORES (DEFAULT)      -->
+    <!-- ========================================== -->
+    <section id="view-explore" class="view-section space-y-8">
+      
+      <!-- HERO BANNER (Uber-style Instant Match) -->
+      <div class="relative rounded-3xl overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-orange-950 text-white p-6 sm:p-10 shadow-xl border border-slate-700/50">
+        <!-- Background decorative pattern -->
+        <div class="absolute -right-16 -top-16 w-80 h-80 bg-orange-500/20 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute right-10 bottom-0 opacity-20 lg:opacity-40 pointer-events-none hidden md:block">
+          <span class="text-[160px] leading-none">🐕</span>
+        </div>
+
+        <div class="relative z-10 max-w-2xl space-y-4">
+          <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/20 border border-orange-400/30 text-orange-300 text-xs font-bold">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <span>Servicio en Tiempo Real en tu Distrito</span>
+          </div>
+
+          <h1 class="text-3xl sm:text-5xl font-black tracking-tight leading-tight">
+            El Uber para tu perro: <span class="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-300">Paseos seguros al instante</span>
+          </h1>
+
+          <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+            Pide un paseador calificado y verificado que llegará a la puerta de tu casa en menos de 10 minutos. Sigue su ruta con GPS en directo, fotos en tiempo real y seguro canino incluido.
+          </p>
+
+          <!-- Fast Action Bar / District & Duration Selector -->
+          <div class="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white/10 backdrop-blur-md p-3 rounded-2xl border border-white/15">
+            <div>
+              <label class="block text-[11px] uppercase font-bold text-orange-200 mb-1">📍 Tu Distrito</label>
+              <select id="heroDistrictSelect" class="w-full bg-slate-900/90 text-white rounded-xl px-3 py-2.5 text-xs font-bold border border-white/20 focus:outline-none">
+                <!-- Dynamically populated -->
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] uppercase font-bold text-orange-200 mb-1">⏱️ Duración del Paseo</label>
+              <select id="heroDurationSelect" class="w-full bg-slate-900/90 text-white rounded-xl px-3 py-2.5 text-xs font-bold border border-white/20 focus:outline-none">
+                <option value="30">30 Minutos (Exprés / Pipí)</option>
+                <option value="45">45 Minutos (Equilibrado)</option>
+                <option value="60" selected>60 Minutos (1 Hora - Recomendado)</option>
+                <option value="90">90 Minutos (1.5 Horas)</option>
+                <option value="120">120 Minutos (2 Horas completas)</option>
+              </select>
+            </div>
+            <div class="flex items-end">
+              <button onclick="window.DoggyApp.openBookingModal()" class="w-full py-2.5 px-4 bg-orange-600 hover:bg-orange-500 text-white rounded-xl font-bold text-xs shadow-md shadow-orange-600/30 transition flex items-center justify-center gap-1.5">
+                <span>Buscar Paseador Ya</span>
+                <span>🐾</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- FILTER TABS & SEARCH -->
+      <div class="space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-2xl font-black text-slate-900">Paseadores Disponibles en tu Zona</h2>
+            <p class="text-xs text-slate-500">Perfiles verificados con antecedentes, reseñas y tarifas detalladas por tiempo</p>
+          </div>
+
+          <!-- Filter Pills -->
+          <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+            <button data-filter="all" class="filter-pill-btn px-4 py-2 rounded-xl text-xs font-bold bg-slate-900 text-white shadow-xs transition">
+              Todos
+            </button>
+            <button data-filter="top_rated" class="filter-pill-btn px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
+              ★ Top 4.9+
+            </button>
+            <button data-filter="certified" class="filter-pill-btn px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
+              🛡️ Veterinarios & Auxilios
+            </button>
+            <button data-filter="big_dogs" class="filter-pill-btn px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
+              🐕 Razas Grandes
+            </button>
+          </div>
+        </div>
+
+        <!-- WALKERS CARDS GRID -->
+        <div id="walkersGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <!-- Dynamically populated from data.js -->
+        </div>
+      </div>
+
+      <!-- VALUE PROPOSITION BAR (Uber guarantees) -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-6">
+        <div class="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-orange-50 text-orange-600 flex items-center justify-center text-2xl shrink-0">
+            📍
+          </div>
+          <div>
+            <h4 class="font-bold text-slate-900 text-sm">GPS en Vivo</h4>
+            <p class="text-xs text-slate-500">Sigue el recorrido de tu perrito en el mapa segundo a segundo.</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-2xl shrink-0">
+            🛡️
+          </div>
+          <div>
+            <h4 class="font-bold text-slate-900 text-sm">Seguro DoggyYa Safe</h4>
+            <p class="text-xs text-slate-500">Cobertura veterinaria gratuita incluida en todos los paseos.</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl shrink-0">
+            ✅
+          </div>
+          <div>
+            <h4 class="font-bold text-slate-900 text-sm">Paseadores Verificados</h4>
+            <p class="text-xs text-slate-500">Validación rigurosa de antecedentes, identidad y pruebas caninas.</p>
+          </div>
+        </div>
+
+        <div class="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center gap-4">
+          <div class="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center text-2xl shrink-0">
+            📸
+          </div>
+          <div>
+            <h4 class="font-bold text-slate-900 text-sm">Fotos & Reporte</h4>
+            <p class="text-xs text-slate-500">Recibe fotos, reportes de pipí/caca y contador de pasos.</p>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- VIEW 2: MAPA EN VIVO (UBER RADAR)          -->
+    <!-- ========================================== -->
+    <section id="view-map" class="view-section hidden space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-2xl font-black text-slate-900 flex items-center gap-2">
+            <span>Mapa en Tiempo Real</span>
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          </h2>
+          <p class="text-xs text-slate-500">Explora los paseadores que están patrullando y disponibles en tu distrito ahora mismo</p>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <select id="mapDistrictFilter" class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none shadow-xs">
+            <!-- Dynamically populated -->
+          </select>
+          <button onclick="window.DoggyApp.openBookingModal()" class="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 transition">
+            <span>Pedir Paseador Inmediato</span>
+            <span>⚡</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- MAP CONTAINER WITH FLOATING OVERLAYS -->
+      <div class="relative w-full h-[620px] rounded-3xl overflow-hidden shadow-lg border border-slate-200 bg-slate-100">
+        <!-- Leaflet Map Container -->
+        <div id="liveUberMap" class="w-full h-full z-0"></div>
+
+        <!-- Floating Quick Info Pill -->
+        <div class="absolute top-4 left-4 z-10 glass-panel px-4 py-2.5 rounded-2xl shadow-md flex items-center gap-3 text-xs">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+          <span class="font-bold text-slate-800">Paseadores activos en el radar</span>
+          <span class="text-slate-400">|</span>
+          <span class="text-slate-600">Haz clic en un marcador para ver datos y tarifas</span>
+        </div>
+
+        <!-- Floating Drawer when Walker Pin is clicked -->
+        <div id="mapWalkerDrawer" class="absolute bottom-6 left-6 right-6 sm:left-auto sm:right-6 sm:w-96 z-20 hidden">
+          <!-- Populated dynamically via JS -->
+        </div>
+
+        <!-- Floating Live Tracking Uber Overlay (Shown during simulated ride) -->
+        <div id="liveTrackingOverlay" class="absolute bottom-6 left-4 right-4 sm:left-6 sm:right-auto sm:w-[420px] z-30 hidden">
+          <!-- Populated during live simulation -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- VIEW 3: CALCULADORA DE TARIFAS             -->
+    <!-- ========================================== -->
+    <section id="view-calculator" class="view-section hidden space-y-6">
+      <div class="text-center max-w-2xl mx-auto space-y-2">
+        <span class="px-3 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700">Precios Transparentes</span>
+        <h2 class="text-3xl font-black text-slate-900">Calculadora Inteligente de Tarifas</h2>
+        <p class="text-slate-500 text-xs sm:text-sm">Personaliza el tiempo exacto, número de perritos y tipo de paseo sin cargos ocultos.</p>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        
+        <!-- Calculator Controls (Left Column) -->
+        <div class="lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+          
+          <!-- Step 1: Duration Slider -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-bold uppercase tracking-wider text-slate-600">1. Selecciona la Duración</label>
+              <span id="calcDurationLabel" class="text-xs font-black text-orange-600 bg-orange-50 px-2.5 py-1 rounded-lg">
+                60 Minutos (1 Hora)
+              </span>
+            </div>
+            
+            <input type="range" id="calcDurationRange" min="30" max="120" step="15" value="60" 
+              oninput="window.DoggyApp.updateCalculator()"
+              class="w-full h-2.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-orange-600">
+
+            <div class="flex justify-between text-[11px] text-slate-400 font-semibold mt-2">
+              <span>30 min</span>
+              <span>45 min</span>
+              <span>60 min (1h)</span>
+              <span>90 min</span>
+              <span>120 min (2h)</span>
+            </div>
+          </div>
+
+          <!-- Step 2: Service Tier Selection -->
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-3">2. Nivel de Servicio</label>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <label class="p-3.5 rounded-2xl border border-slate-200 cursor-pointer has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50/50 transition">
+                <input type="radio" name="calcTier" value="express" onchange="window.DoggyApp.updateCalculator()" class="hidden">
+                <div class="text-lg mb-1">⚡</div>
+                <div class="font-bold text-slate-900 text-xs">Paseo Exprés</div>
+                <div class="text-[11px] text-slate-500 mt-1">Necesidades rápidas y caminata ligera</div>
+              </label>
+
+              <label class="p-3.5 rounded-2xl border-2 border-orange-500 bg-orange-50/30 cursor-pointer has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50/50 transition">
+                <input type="radio" name="calcTier" value="standard" checked onchange="window.DoggyApp.updateCalculator()" class="hidden">
+                <div class="text-lg mb-1">🐾</div>
+                <div class="flex items-center gap-1 font-bold text-slate-900 text-xs">
+                  <span>Paseo Estándar</span>
+                  <span class="text-[9px] bg-orange-500 text-white px-1.5 rounded">Top</span>
+                </div>
+                <div class="text-[11px] text-slate-500 mt-1">Juegos, ejercicio en parque e hidratación</div>
+              </label>
+
+              <label class="p-3.5 rounded-2xl border border-slate-200 cursor-pointer has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50/50 transition">
+                <input type="radio" name="calcTier" value="vip" onchange="window.DoggyApp.updateCalculator()" class="hidden">
+                <div class="text-lg mb-1">👑</div>
+                <div class="font-bold text-slate-900 text-xs">Paseo VIP</div>
+                <div class="text-[11px] text-slate-500 mt-1">100% Exclusivo 1 a 1 + Fotos HD + Masaje</div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Step 3: Number of Dogs -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">3. ¿Cuántos perros pasearán?</label>
+              <select id="calcDogsCount" onchange="window.DoggyApp.updateCalculator()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:outline-none">
+                <option value="1">1 Perrito (Individual)</option>
+                <option value="2">2 Perritos (50% dscto. en el segundo)</option>
+                <option value="3">3 Perritos (Pack Manada Familiar)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2">📍 Distrito</label>
+              <select id="calcDistrictSelect" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-800 focus:outline-none">
+                <!-- Dynamically populated -->
+              </select>
+            </div>
+          </div>
+
+          <!-- Step 4: Add-on Extras -->
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-2.5">4. Extras Opcionales de Bienestar</label>
+            <div class="space-y-2">
+              <label class="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer text-xs">
+                <div class="flex items-center gap-2.5">
+                  <input type="checkbox" data-price="5" onchange="window.DoggyApp.updateCalculator()" class="calc-extra-checkbox accent-orange-600 rounded">
+                  <span class="font-medium text-slate-700">Limpieza y desinfección de patitas post-paseo</span>
+                </div>
+                <span class="font-bold text-slate-900">+ S/. 5</span>
+              </label>
+
+              <label class="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer text-xs">
+                <div class="flex items-center gap-2.5">
+                  <input type="checkbox" data-price="6" onchange="window.DoggyApp.updateCalculator()" class="calc-extra-checkbox accent-orange-600 rounded">
+                  <span class="font-medium text-slate-700">Snack / Galleta orgánica de premio aprobada por veterinarios</span>
+                </div>
+                <span class="font-bold text-slate-900">+ S/. 6</span>
+              </label>
+
+              <label class="flex items-center justify-between p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer text-xs">
+                <div class="flex items-center gap-2.5">
+                  <input type="checkbox" data-price="8" onchange="window.DoggyApp.updateCalculator()" class="calc-extra-checkbox accent-orange-600 rounded">
+                  <span class="font-medium text-slate-700">Álbum fotográfico profesional digital (10 fotos en alta resolución)</span>
+                </div>
+                <span class="font-bold text-slate-900">+ S/. 8</span>
+              </label>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Receipt / Pricing Summary Card (Right Column) -->
+        <div class="lg:col-span-5 bg-gradient-to-b from-slate-900 to-slate-800 text-white p-6 sm:p-8 rounded-3xl shadow-xl border border-slate-700/60 sticky top-28 space-y-6">
+          <div class="flex items-center justify-between pb-4 border-b border-white/10">
+            <div>
+              <div class="text-[11px] uppercase tracking-wider text-orange-400 font-bold">Desglose Estimado</div>
+              <h3 class="text-xl font-black">Resumen de Paseo</h3>
+            </div>
+            <span class="text-2xl">🧾</span>
+          </div>
+
+          <div class="space-y-3 text-xs">
+            <div class="flex justify-between text-slate-300">
+              <span>Tarifa base por tiempo:</span>
+              <span id="calcBasePrice" class="font-bold text-white">S/. 30</span>
+            </div>
+            <div class="flex justify-between text-slate-300">
+              <span>Modalidad:</span>
+              <span id="calcTierName" class="font-bold text-white">Paseo Estándar</span>
+            </div>
+            <div class="flex justify-between text-slate-300">
+              <span>Perros incluidos:</span>
+              <span id="calcDogsDiscount" class="font-bold text-emerald-400">1 perro</span>
+            </div>
+            <div class="flex justify-between text-slate-300">
+              <span>Seguro Veterinario DoggyYa Safe:</span>
+              <span class="font-bold text-emerald-400">¡GRATIS ($0.00)!</span>
+            </div>
+            <div class="flex justify-between text-slate-300">
+              <span>Rastreo GPS en tiempo real:</span>
+              <span class="font-bold text-emerald-400">Incluido ✓</span>
+            </div>
+          </div>
+
+          <!-- Total Amount -->
+          <div class="pt-4 border-t border-white/10 flex items-center justify-between">
+            <div>
+              <div class="text-xs text-slate-400">Total a pagar estimado:</div>
+              <div id="calcTotalPrice" class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-300">
+                S/. 30
+              </div>
+            </div>
+            <div class="text-right">
+              <span class="text-[10px] text-slate-400 block">Sin cobros sorpresa</span>
+              <span class="text-[11px] text-emerald-400 font-bold">Cancelación gratis</span>
+            </div>
+          </div>
+
+          <button onclick="window.DoggyApp.openBookingModal()" class="w-full py-4 bg-orange-600 hover:bg-orange-500 text-white rounded-2xl font-bold text-sm shadow-lg shadow-orange-600/30 flex items-center justify-center gap-2 transition transform active:scale-95">
+            <span>Reservar con esta Tarifa</span>
+            <span>🚀</span>
+          </button>
+
+          <p class="text-[11px] text-center text-slate-400">
+            Aceptamos Yape, Plin, Tarjetas de Crédito/Débito y Efectivo.
+          </p>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- VIEW 4: MIS MASCOTAS                       -->
+    <!-- ========================================== -->
+    <section id="view-pets" class="view-section hidden space-y-6">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-2xl font-black text-slate-900">Mis Mascotas Registradas</h2>
+          <p class="text-xs text-slate-500">Configura sus características, temperamento y requerimientos para que el paseador esté preparado</p>
+        </div>
+        <button onclick="document.getElementById('addPetModal').classList.remove('hidden')" class="px-4 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-xs flex items-center gap-2 shadow-xs transition">
+          <span>+ Registrar Nuevo Perro</span>
+        </button>
+      </div>
+
+      <div id="petsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Dynamically rendered -->
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- VIEW 5: MIS PASEOS & HISTORIAL             -->
+    <!-- ========================================== -->
+    <section id="view-trips" class="view-section hidden space-y-6">
+      <div>
+        <h2 class="text-2xl font-black text-slate-900">Historial de Paseos</h2>
+        <p class="text-xs text-slate-500">Consulta las métricas de paseos pasados, reportes de actividad y recibos</p>
+      </div>
+
+      <div id="pastWalksContainer" class="space-y-4">
+        <!-- Dynamically rendered -->
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- VIEW 6: CONVIÉRTETE EN PASEADOR            -->
+    <!-- ========================================== -->
+    <section id="view-become-walker" class="view-section hidden space-y-8">
+      <div class="bg-gradient-to-r from-orange-600 to-amber-600 rounded-3xl p-8 sm:p-12 text-white shadow-xl relative overflow-hidden">
+        <div class="max-w-2xl space-y-4 relative z-10">
+          <span class="px-3 py-1 bg-white/20 text-white text-xs font-bold rounded-full border border-white/30">Oportunidad de Ingresos</span>
+          <h2 class="text-3xl sm:text-5xl font-black">Haz dinero paseando perros en tu distrito</h2>
+          <p class="text-orange-100 text-sm leading-relaxed">
+            Maneja tus propios horarios. Elige qué distritos deseas recorrer y gana hasta <strong>S/. 2,800 al mes</strong> disfrutando del aire libre con los perros más amigables de tu vecindario.
+          </p>
+          <div class="flex flex-wrap gap-4 pt-2">
+            <div class="bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/20">
+              <div class="text-xl font-black">100% Flexible</div>
+              <div class="text-[11px] text-orange-200">Elige tus horas libres</div>
+            </div>
+            <div class="bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/20">
+              <div class="text-xl font-black">Pagos Semanales</div>
+              <div class="text-[11px] text-orange-200">Directo a tu cuenta bancaria o Yape</div>
+            </div>
+            <div class="bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/20">
+              <div class="text-xl font-black">Seguro Incluido</div>
+              <div class="text-[11px] text-orange-200">Protección para ti y el perro</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Application Form -->
+      <div class="max-w-xl mx-auto bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+        <h3 class="text-xl font-black text-slate-900">Postula como Paseador DoggyYa</h3>
+        <p class="text-xs text-slate-500">Completa el formulario y nos pondremos en contacto para tu validación en 24 horas.</p>
+
+        <form onsubmit="event.preventDefault(); alert('¡Gracias por postular! Revisaremos tus datos y te contactaremos vía WhatsApp para coordinar tu verificación de identidad y test de manejo canino.'); this.reset();" class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Nombre Completo</label>
+            <input type="text" required placeholder="Ej. Juan Pérez" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none">
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Teléfono / WhatsApp</label>
+              <input type="tel" required placeholder="+51 987 654 321" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none">
+            </div>
+            <div>
+              <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">DNI / Pasaporte</label>
+              <input type="text" required placeholder="8 dígitos" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Distrito Principal donde deseas pasear</label>
+            <select class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-800 focus:outline-none">
+              <option>Miraflores</option>
+              <option>San Isidro</option>
+              <option>Surco</option>
+              <option>Barranco</option>
+              <option>San Borja</option>
+              <option>Magdalena</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">¿Tienes experiencia previa con perros?</label>
+            <textarea rows="3" placeholder="Cuéntanos brevemente qué razas has manejado o si tienes formación en veterinaria/adiestramiento." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-800 focus:outline-none"></textarea>
+          </div>
+
+          <button type="submit" class="w-full py-3.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-xs shadow-md transition">
+            Enviar Solicitud de Paseador 🚀
+          </button>
+        </form>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- MODAL: DETALLES DE PASEADOR                -->
+  <!-- ========================================== -->
+  <div id="walkerProfileModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div id="walkerModalContent" class="bg-white rounded-3xl max-w-2xl w-full shadow-2xl overflow-hidden animate-fade-in relative">
+      <!-- Populated dynamically via JS -->
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: RESERVAR Y PEDIR YA (CHECKOUT)      -->
+  <!-- ========================================== -->
+  <div id="bookingModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div id="bookingModalContent" class="bg-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden animate-fade-in relative">
+      <!-- Populated dynamically via JS -->
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: PASEO COMPLETADO RESUMEN            -->
+  <!-- ========================================== -->
+  <div id="walkCompletedModal" class="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div id="walkCompletedModalContent" class="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden animate-fade-in relative">
+      <!-- Populated dynamically via JS -->
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: REGISTRAR NUEVA MASCOTA             -->
+  <!-- ========================================== -->
+  <div id="addPetModal" class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs hidden items-center justify-center p-4">
+    <div class="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden animate-fade-in p-6 space-y-4">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 class="text-xl font-black text-slate-900">Registrar Nuevo Perro 🐕</h3>
+        <button onclick="document.getElementById('addPetModal').classList.add('hidden')" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center">✕</button>
+      </div>
+
+      <form id="addPetForm" class="space-y-4 text-xs">
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Nombre del Perro</label>
+          <input type="text" id="petNameInput" required placeholder="Ej. Toby" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Raza</label>
+            <input type="text" id="petBreedInput" required placeholder="Ej. Labrador" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none">
+          </div>
+          <div>
+            <label class="block font-bold text-slate-700 mb-1">Edad</label>
+            <input type="text" id="petAgeInput" required placeholder="Ej. 2 años" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none">
+          </div>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Tamaño aproximado</label>
+          <select id="petSizeInput" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 font-bold focus:outline-none">
+            <option>Pequeño (menos de 10 kg)</option>
+            <option>Mediano (10 a 25 kg)</option>
+            <option>Grande (25 a 45 kg)</option>
+            <option>Gigante (más de 45 kg)</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">URL de Foto (o dejar por defecto)</label>
+          <input type="url" id="petAvatarInput" placeholder="https://..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none">
+        </div>
+        <div>
+          <label class="block font-bold text-slate-700 mb-1">Observaciones / Cuidados especiales</label>
+          <textarea id="petNotesInput" rows="2" placeholder="Ej. Muy juguetón, teme a los truenos, requiere agua frecuente." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none"></textarea>
+        </div>
+
+        <button type="submit" class="w-full py-3.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-xs shadow-md transition">
+          Guardar Mascota 🐾
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="bg-white border-t border-slate-200/80 mt-16 py-12 text-slate-500 text-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-8">
+      <div class="space-y-3">
+        <div class="flex items-center gap-2">
+          <span class="text-2xl">🐾</span>
+          <span class="brand-font text-xl font-black text-slate-900">Doggy<span class="text-orange-600">Ya</span></span>
+        </div>
+        <p class="text-slate-500 leading-relaxed">
+          La plataforma #1 estilo Uber para el paseo y bienestar de tu perro. Paseadores capacitados en tu distrito al instante.
+        </p>
+        <div class="text-[11px] text-slate-400">© 2026 DoggyYa Inc. Todos los derechos reservados.</div>
+      </div>
+
+      <div>
+        <h4 class="font-bold text-slate-900 uppercase tracking-wider mb-3">Distritos Cubiertos</h4>
+        <ul class="space-y-1.5 text-slate-500">
+          <li>📍 Miraflores</li>
+          <li>📍 San Isidro</li>
+          <li>📍 Santiago de Surco</li>
+          <li>📍 Barranco & San Borja</li>
+          <li>📍 Magdalena & Jesús María</li>
+        </ul>
+      </div>
+
+      <div>
+        <h4 class="font-bold text-slate-900 uppercase tracking-wider mb-3">Seguridad & Garantía</h4>
+        <ul class="space-y-1.5 text-slate-500">
+          <li>🛡️ Seguro Veterinario DoggyYa Safe</li>
+          <li>✅ Validación 100% de Antecedentes</li>
+          <li>🛰️ Rastreo GPS Satelital en Vivo</li>
+          <li>💳 Pagos Seguros y Encriptados</li>
+        </ul>
+      </div>
+
+      <div>
+        <h4 class="font-bold text-slate-900 uppercase tracking-wider mb-3">Atención al Cliente</h4>
+        <p class="mb-3">Soporte 24/7 para emergencias durante el paseo de tu mascota.</p>
+        <div class="bg-orange-50 text-orange-700 p-3 rounded-xl border border-orange-200/60 font-bold text-center">
+          📞 Central de Emergencias Caninas: <br> +51 987 DOGGY (36449)
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- App Logic Scripts -->
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
